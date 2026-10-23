@@ -1,0 +1,12 @@
+# Requêtes d'exemple pour tester l'API à la main.
+#
+# S'utilise avec l'extension REST Client de VS Code : un lien « Send Request »
+# apparaît au-dessus de chaque requête, et la réponse s'affiche à droite.
+# Les requêtes sont séparées par ###. Chaque route y figure avec son cas
+# réussi et ses cas d'erreur (400, 404, 409), pour qu'on puisse vérifier les
+# codes de réponse sans écrire de client.
+#
+# Prérequis : la base créée avec sql/schema.sql et le serveur lancé avec
+# npm run dev. Les requêtes passent par index.ts, puis par
+# routes/clients.ts ou routes/devis.ts selon le préfixe.
+
