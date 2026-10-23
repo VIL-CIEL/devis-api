@@ -1,0 +1,23 @@
+# Dépendances
+node_modules/
+
+# Fichiers d'essai du cours, hors livrable
+essais/
+
+# Variables d'environnement (mots de passe) : seul l'exemple est versionné
+.env
+.env.*
+!.env.example
+
+# Sorties de compilation, au cas où tsc serait lancé sans --noEmit
+dist/
+*.tsbuildinfo
+
+# Journaux
+*.log
+npm-debug.log*
+
+# Fichiers système
+Thumbs.db
+desktop.ini
+.DS_Store
