@@ -14,6 +14,13 @@ import pg from "pg";
 
 const DATABASE_URL = process.env.DATABASE_URL;
 
-if (DATABASE_URL === undefined) {
-throw new Error("DATABASE URL NOT DEFINED");
+if (!DATABASE_URL) {
+    throw new Error(
+        "[Configuration Error]: La variable d'environnement 'DATABASE_URL' est manquante ou vide. Veuillez vérifier votre fichier .env ou vos variables de déploiement."
+    );
 }
+
+
+export const pool = new pg.Pool({
+    connectionString: DATABASE_URL
+});
