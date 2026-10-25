@@ -10,4 +10,29 @@
  * routeurDevis (routes/devis.ts), gestionErreurs (erreurs.ts).
  * N'est importé par aucun fichier.
  */
+import express from "express";
+import { pool } from "./db.js";
 
+const DEBUG = process.env.DEBUG === "1";
+
+const app = express();
+
+app.use(express.json());
+
+app.get("/health", async (req, res) => {
+    try {
+        const message = "Application active";
+        await pool.query("SELECT 1");
+        res.json({ status: message });
+        if (DEBUG) console.log("[CALL /health] : " + message);
+    } catch (error) {
+        const messageErreur = "Une erreur est survenue lors de l'appel de la base de données";
+        res.status(503).json({ "erreur": messageErreur });
+        console.error("[CALL ERROR] : " + messageErreur + "; ERREUR => ", error);
+    }
+});
+
+const PORT = Number(process.env.PORT ?? 3000);
+app.listen(PORT, () => {
+    console.log("[APPLICATION ACTIVE] : Ecoute sur le port '" + PORT + "'");
+});

@@ -10,3 +10,7 @@
 # npm run dev. Les requêtes passent par index.ts, puis par
 # routes/clients.ts ou routes/devis.ts selon le préfixe.
 
+@base = http://localhost:3000
+
+### Santé de l'API
+GET {{base}}/health
