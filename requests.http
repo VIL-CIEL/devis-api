@@ -14,3 +14,13 @@
 
 ### Santé de l'API
 GET {{base}}/health
+
+### Route inconnue (doit répondre 404)
+GET {{base}}/inconnue
+
+### JSON mal formé (doit répondre 400)
+POST {{base}}/health
+Content-Type: application/json
+
+{ "nom":}
+

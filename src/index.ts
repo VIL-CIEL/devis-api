@@ -12,6 +12,7 @@
  */
 import express from "express";
 import { pool } from "./db.js";
+import { gestionErreurs } from "./erreurs.js";
 
 const DEBUG = process.env.DEBUG === "1";
 
@@ -31,6 +32,14 @@ app.get("/health", async (req, res) => {
         console.error("[CALL ERROR] : " + messageErreur + "; ERREUR => ", error);
     }
 });
+
+app.use((req, res) => {
+    res.status(404).json({
+        erreur: "Route introuvable"
+    });
+});
+
+app.use(gestionErreurs);
 
 const PORT = Number(process.env.PORT ?? 3000);
 app.listen(PORT, () => {
