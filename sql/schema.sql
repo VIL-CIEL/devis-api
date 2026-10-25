@@ -6,3 +6,13 @@
 --
 -- Exécution : psql -U devis_app -d devis -h localhost -f sql/schema.sql
 
+DROP TABLE IF EXISTS clients;
+
+CREATE TABLE clients (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nom TEXT NOT NULL CHECK (length(btrim(nom)) > 0),
+    email TEXT NULL,
+    telephone TEXT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
