@@ -13,6 +13,8 @@
  */
 import type { ErrorRequestHandler } from "express";
 
+const DEBUG = process.env.DEBUG === "1";
+
 export class ErreurHttp extends Error {
     readonly status: number;
     constructor(status: number, message: string) {
@@ -24,9 +26,11 @@ export class ErreurHttp extends Error {
 export const gestionErreurs: ErrorRequestHandler = (err, req, res, next) => {
     if (err instanceof ErreurHttp) {
         res.status(err.status).json({ "erreur": err.message });
+        if (DEBUG) console.log("[" + err.status + "] : " + err.message);
     }
     else if (err.type === "entity.parse.failed") {
         res.status(400).json({ "erreur": "le corps de la requête n’est pas un JSON valide" });
+        if (DEBUG) console.log("[400] : le corps de la requête n’est pas un JSON valide");
     }
     else {
         const messageErreur = "Une erreur imprévue est survenue";

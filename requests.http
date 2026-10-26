@@ -24,3 +24,14 @@ Content-Type: application/json
 
 { "nom":}
 
+### Liste des clients (200)
+GET {{base}}/clients
+
+### Un client (200)
+GET {{base}}/clients/1
+
+### Client inexistant (404)
+GET {{base}}/clients/9999
+
+### Identifiant invalide (400)
+GET {{base}}/clients/abc
