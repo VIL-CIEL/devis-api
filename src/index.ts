@@ -14,6 +14,7 @@ import express from "express";
 import { pool } from "./db.js";
 import { gestionErreurs } from "./erreurs.js";
 import { routeurClients } from "./routes/clients.js";
+import { routeurDevis } from "./routes/devis.js";
 
 const DEBUG = process.env.DEBUG === "1";
 
@@ -48,6 +49,8 @@ app.get("/health", async (req, res) => {
 });
 
 app.use("/clients", routeurClients);
+
+app.use("/devis", routeurDevis);
 
 app.use((req, res) => {
     res.status(404).json({

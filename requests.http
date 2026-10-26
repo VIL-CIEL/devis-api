@@ -122,3 +122,39 @@ PATCH {{base}}/clients/abc
 Content-Type: application/json
 
 { "nom": "Test" }
+
+### Supprimer un client qui a des devis (409)
+DELETE {{base}}/clients/1
+
+### Lister les devis (200)
+GET {{base}}/devis
+
+### Créer un devis (201, statut brouillon)
+POST {{base}}/devis
+Content-Type: application/json
+
+{ "client_id": 2 }
+
+### Créer un devis pour un client inexistant (404)
+POST {{base}}/devis
+Content-Type: application/json
+
+{ "client_id": 9999 }
+
+### client_id en chaîne (400)
+POST {{base}}/devis
+Content-Type: application/json
+
+{ "client_id": "2" }
+
+### client_id décimal (400)
+POST {{base}}/devis
+Content-Type: application/json
+
+{ "client_id": 1.5 }
+
+### Corps sans client_id (400)
+POST {{base}}/devis
+Content-Type: application/json
+
+{}
