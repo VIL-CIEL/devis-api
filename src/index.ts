@@ -19,6 +19,20 @@ const DEBUG = process.env.DEBUG === "1";
 
 const app = express();
 
+app.use((req, res, next) => {
+    if (!DEBUG) { return next(); }
+
+    const debut = Date.now();
+
+    res.on("finish", () => {
+        const duree = Date.now() - debut;
+
+        console.log(req.method + " " + req.originalUrl + " " + res.statusCode + " " + duree + " ms");
+    });
+
+    next();
+});
+
 app.use(express.json());
 
 app.get("/health", async (req, res) => {
@@ -26,7 +40,6 @@ app.get("/health", async (req, res) => {
         const message = "Application active";
         await pool.query("SELECT 1");
         res.json({ status: message });
-        if (DEBUG) console.log("[CALL /health] : " + message);
     } catch (error) {
         const messageErreur = "Une erreur est survenue lors de l'appel de la base de données";
         res.status(503).json({ "erreur": messageErreur });

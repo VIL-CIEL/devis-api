@@ -35,3 +35,90 @@ GET {{base}}/clients/9999
 
 ### Identifiant invalide (400)
 GET {{base}}/clients/abc
+
+### Créer un client complet (201)
+POST {{base}}/clients
+Content-Type: application/json
+
+{ "nom": "  Atelier Durand  ", "email": "Contact@Atelier-Durand.EXAMPLE.fr", "telephone": "0478000000" }
+
+### Créer un client avec seulement un nom (201)
+POST {{base}}/clients
+Content-Type: application/json
+
+{ "nom": "Garage Martin" }
+
+### Créer un client sans nom (400)
+POST {{base}}/clients
+Content-Type: application/json
+
+{ "email": "anonyme@example.fr" }
+
+### Nom fait d'espaces (400)
+POST {{base}}/clients
+Content-Type: application/json
+
+{ "nom": "   " }
+
+### Email du mauvais type (400)
+POST {{base}}/clients
+Content-Type: application/json
+
+{ "nom": "Test", "email": 42 }
+
+### Corps qui n'est pas un objet (400)
+POST {{base}}/clients
+Content-Type: application/json
+
+"juste une chaîne"
+
+### Supprimer un client (204) : remplace 7 par l'id renvoyé par une création
+DELETE {{base}}/clients/7
+
+### Supprimer le même client une seconde fois (404)
+DELETE {{base}}/clients/7
+
+### Supprimer avec un identifiant invalide (400)
+DELETE {{base}}/clients/abc
+
+### Modifier seulement le téléphone (200)
+PATCH {{base}}/clients/1
+Content-Type: application/json
+
+{ "telephone": "0478111111" }
+
+### Effacer l'email (200, email à null, le reste inchangé)
+PATCH {{base}}/clients/1
+Content-Type: application/json
+
+{ "email": null }
+
+### Renommer avec des espaces autour (200, nom nettoyé)
+PATCH {{base}}/clients/1
+Content-Type: application/json
+
+{ "nom": "  Boulangerie Martin  " }
+
+### Corps vide (400)
+PATCH {{base}}/clients/1
+Content-Type: application/json
+
+{}
+
+### Nom à null (400)
+PATCH {{base}}/clients/1
+Content-Type: application/json
+
+{ "nom": null }
+
+### Client inexistant (404)
+PATCH {{base}}/clients/9999
+Content-Type: application/json
+
+{ "nom": "Personne" }
+
+### Identifiant invalide (400)
+PATCH {{base}}/clients/abc
+Content-Type: application/json
+
+{ "nom": "Test" }
