@@ -11,3 +11,15 @@
  * Utilisé par : routes/devis.ts. N'importe rien.
  */
 
+export const STATUTS = [
+    "brouillon",
+    "envoye",
+    "signe",
+    "refuse"
+] as const;
+
+export type Statut = (typeof STATUTS)[number];
+
+export function lignesModifiables(statut: Statut): boolean {
+    return statut === "brouillon";
+}

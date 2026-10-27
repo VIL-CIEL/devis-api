@@ -173,3 +173,57 @@ GET {{base}}/devis/9999
 
 ### Identifiant invalide (400)
 GET {{base}}/devis/abc
+
+### Ajouter une ligne à un brouillon (201)
+POST {{base}}/devis/1/lignes
+Content-Type: application/json
+
+{ "designation": "Routeur 4G de secours", "quantite": 1, "prix_unitaire_ht": 129.00 }
+
+### Ajouter une ligne à un devis envoyé (409)
+POST {{base}}/devis/3/lignes
+Content-Type: application/json
+
+{ "designation": "Ligne en trop", "quantite": 1, "prix_unitaire_ht": 10 }
+
+### Quantité nulle (400)
+POST {{base}}/devis/1/lignes
+Content-Type: application/json
+
+{ "designation": "Test", "quantite": 0, "prix_unitaire_ht": 10 }
+
+### Prix négatif (400)
+POST {{base}}/devis/1/lignes
+Content-Type: application/json
+
+{ "designation": "Test", "quantite": 1, "prix_unitaire_ht": -5 }
+
+### Prix trop grand (400, pas 500)
+POST {{base}}/devis/1/lignes
+Content-Type: application/json
+
+{ "designation": "Test", "quantite": 1, "prix_unitaire_ht": 1000000000 }
+
+### Désignation vide (400)
+POST {{base}}/devis/1/lignes
+Content-Type: application/json
+
+{ "designation": "   ", "quantite": 1, "prix_unitaire_ht": 10 }
+
+### Devis inexistant (404)
+POST {{base}}/devis/9999/lignes
+Content-Type: application/json
+
+{ "designation": "Test", "quantite": 1, "prix_unitaire_ht": 10 }
+
+### Retirer une ligne d'un brouillon (204)
+DELETE {{base}}/devis/1/lignes/1
+
+### Retirer la même ligne une seconde fois (404)
+DELETE {{base}}/devis/1/lignes/1
+
+### Retirer une ligne qui appartient à un autre devis (404)
+DELETE {{base}}/devis/1/lignes/4
+
+### Retirer une ligne d'un devis envoyé (409)
+DELETE {{base}}/devis/3/lignes/4

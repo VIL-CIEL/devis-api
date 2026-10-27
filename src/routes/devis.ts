@@ -15,11 +15,12 @@
 import express from "express";
 import { pool } from "../db.js";
 import { ErreurHttp, lireId, codePg } from "../erreurs.js";
+import { lignesModifiables, type Statut } from "../statuts.js";
 
 type Devis = {
     id: number;
     client_id: number;
-    statut: string;
+    statut: Statut;
     created_at: Date;
     updated_at: Date;
 };
@@ -39,6 +40,12 @@ type LigneDevis = {
 type DevisDetaille = Devis & {
     lignes: LigneDevis[];
     total_ht: string;
+};
+
+type NouvelleLigne = {
+    designation: string;
+    quantite: number;
+    prix_unitaire_ht: number;
 };
 
 function lireNouveauDevis(corps: unknown): NouveauDevis {
@@ -72,6 +79,32 @@ async function chargerDevis(id: number): Promise<Devis> {
     }
 
     return devis;
+}
+
+function lireNouvelleLigne(corps: unknown): NouvelleLigne {
+    if (typeof corps !== "object" || corps === null) {
+        throw new ErreurHttp(400, "Corps JSON invalide lors de l'ajout d'une ligne");
+    }
+
+    const objet = corps as Record<string, unknown>;
+
+    const designation = objet.designation;
+    const quantite = objet.quantite;
+    const prixUnitaireHt = objet.prix_unitaire_ht;
+
+    if (typeof designation !== "string" || designation.trim() === "") {
+        throw new ErreurHttp(400, "La désignation doit être une chaîne non vide");
+    }
+
+    if (typeof quantite !== "number" || !Number.isInteger(quantite) || quantite <= 0) {
+        throw new ErreurHttp(400, "La quantité doit être un entier strictement positif");
+    }
+
+    if (typeof prixUnitaireHt !== "number" || prixUnitaireHt < 0 || prixUnitaireHt > 99999999.99) {
+        throw new ErreurHttp(400, "Le prix unitaire HT doit être compris entre 0 et 99999999.99");
+    }
+
+    return { designation: designation.trim(), quantite, prix_unitaire_ht: prixUnitaireHt };
 }
 
 export const routeurDevis = express.Router();
@@ -147,4 +180,55 @@ routeurDevis.post("/", async (req, res) => {
 
         throw err;
     }
+});
+
+routeurDevis.post("/:id/lignes", async (req, res) => {
+    const id = lireId(req.params.id);
+
+    const nouvelleLigne = lireNouvelleLigne(req.body);
+
+    const devis = await chargerDevis(id);
+
+    if (!lignesModifiables(devis.statut)) {
+        throw new ErreurHttp(409, "Impossible de modifier les lignes d'un devis au statut " + devis.statut);
+    }
+
+    const resultat = await pool.query<LigneDevis>(
+        `INSERT INTO lignes_devis (devis_id, designation, quantite, prix_unitaire_ht)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, devis_id, designation, quantite, prix_unitaire_ht`,
+        [id, nouvelleLigne.designation, nouvelleLigne.quantite, nouvelleLigne.prix_unitaire_ht]
+    );
+
+    const ligne = resultat.rows[0];
+
+    if (ligne === undefined) {
+        throw new Error("Insertion échouée lors de la création d'une ligne de devis");
+    }
+
+    res.status(201).json(ligne);
+});
+
+routeurDevis.delete("/:id/lignes/:ligneId", async (req, res) => {
+    const id = lireId(req.params.id);
+    const ligneId = lireId(req.params.ligneId);
+
+    const devis = await chargerDevis(id);
+
+    if (!lignesModifiables(devis.statut)) {
+        throw new ErreurHttp(409, "Impossible de modifier les lignes d'un devis au statut " + devis.statut);
+    }
+
+    const resultat = await pool.query(
+        `DELETE FROM lignes_devis
+        WHERE id = $1
+        AND devis_id = $2`,
+        [ligneId, id]
+    );
+
+    if (resultat.rowCount === 0) {
+        throw new ErreurHttp(404, "Ligne " + ligneId + " introuvable dans le devis " + id);
+    }
+
+    res.sendStatus(204);
 });
