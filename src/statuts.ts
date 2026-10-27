@@ -27,10 +27,10 @@ const TRANSITIONS: Record<Statut, readonly Statut[]> = {
     refuse: []
 };
 
-export function lignesModifiables(statut: Statut): boolean {
-    return statut === "brouillon";
-}
-
+/**
+ * Garde de type : vérifie qu'une valeur reçue de l'extérieur (corps JSON,
+ * paramètre d'URL) est l'un des quatre statuts. Sensible à la casse.
+ */
 export function estStatut(valeur: unknown): valeur is Statut {
     return (
         typeof valeur === "string" &&
@@ -38,6 +38,18 @@ export function estStatut(valeur: unknown): valeur is Statut {
     );
 }
 
+/**
+ * Dit si un devis peut passer du statut "de" au statut "vers", d'après la
+ * table TRANSITIONS. Rester dans le même statut n'est pas une transition.
+ */
 export function peutPasser(de: Statut, vers: Statut): boolean {
     return TRANSITIONS[de].includes(vers);
+}
+
+/**
+ * Dit si les lignes d'un devis peuvent encore être ajoutées ou retirées :
+ * seulement en brouillon. Une fois envoyé, un devis est figé.
+ */
+export function lignesModifiables(statut: Statut): boolean {
+    return statut === "brouillon";
 }

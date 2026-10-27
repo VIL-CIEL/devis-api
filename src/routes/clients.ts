@@ -8,12 +8,12 @@
  * routes/devis.ts : la base est leur seul point commun.
  *
  * Exporte : routeurClients, branché par index.ts sur /clients.
- * Importe : pool (db.ts), ErreurHttp, lireId, codePg (erreurs.ts).
+ * Importe : pool (db.ts), ErreurHttp, lireObjet, lireId, codePg (erreurs.ts).
  */
 
 import express from "express";
 import { pool } from "../db.js";
-import { ErreurHttp, lireId, codePg } from "../erreurs.js";
+import { ErreurHttp, lireObjet, lireId, codePg } from "../erreurs.js";
 
 type Client = {
     id: number;
@@ -55,7 +55,7 @@ function lireTexteFacultatif(valeur: unknown, champ: string): string | null {
     }
 
     if (typeof valeur !== "string") {
-        throw new ErreurHttp(400, "Type du champ : " + champ + " invalide");
+        throw new ErreurHttp(400, "Le champ " + champ + " doit être une chaîne");
     }
 
     const texte = valeur.trim();
@@ -67,28 +67,24 @@ function lireTexteFacultatif(valeur: unknown, champ: string): string | null {
     return texte;
 }
 
-function lireNouveauClient(corps: unknown): NouveauClient {
-    if (typeof corps !== "object" || corps === null) {
-        throw new ErreurHttp(400, "Corps JSON invalide lors de la création d'un nouveau client");
-    }
-
-    const objet = corps as Record<string, unknown>;
-
-    const nom = lireNom(objet.nom);
-
-    const email = lireTexteFacultatif(objet.email, "email")?.toLowerCase() ?? null;
-
-    const telephone = lireTexteFacultatif(objet.telephone, "telephone");
-
-    return { nom, email, telephone };
+// Email en minuscules : deux écritures de la même adresse donnent la même valeur en base
+function lireEmail(valeur: unknown): string | null {
+    return lireTexteFacultatif(valeur, "email")?.toLowerCase() ?? null;
 }
 
-function lireModifClient(corps: unknown): ModifClient {
-    if (typeof corps !== "object" || corps === null) {
-        throw new ErreurHttp(400, "Corps JSON invalide lors de la modification d'un client");
-    }
+function lireNouveauClient(corps: unknown): NouveauClient {
+    const objet = lireObjet(corps);
 
-    const objet = corps as Record<string, unknown>;
+    return {
+        nom: lireNom(objet.nom),
+        email: lireEmail(objet.email),
+        telephone: lireTexteFacultatif(objet.telephone, "telephone")
+    };
+}
+
+// Une clé absente ne modifie rien ; une clé à null efface la valeur
+function lireModifClient(corps: unknown): ModifClient {
+    const objet = lireObjet(corps);
 
     const modif: ModifClient = {};
 
@@ -97,11 +93,7 @@ function lireModifClient(corps: unknown): ModifClient {
     }
 
     if (objet.email !== undefined) {
-        modif.email = lireTexteFacultatif(objet.email, "email");
-
-        if (modif.email !== null) {
-            modif.email = modif.email.toLowerCase();
-        }
+        modif.email = lireEmail(objet.email);
     }
 
     if (objet.telephone !== undefined) {
@@ -159,34 +151,10 @@ routeurClients.post("/", async (req, res) => {
     const client = resultat.rows[0];
 
     if (client === undefined) {
-        throw new Error("Insertion échouée lors de la création d'un nouveau client");
+        throw new Error("Insertion échouée lors de la création d'un client");
     }
 
     res.status(201).json(client);
-});
-
-routeurClients.delete("/:id", async (req, res) => {
-    const id = lireId(req.params.id);
-
-    try {
-        const resultat = await pool.query(
-            `DELETE FROM clients
-            WHERE id = $1`,
-            [id]
-        );
-
-        if (resultat.rowCount === 0) {
-            throw new ErreurHttp(404, "Client " + id + " introuvable");
-        }
-
-        res.sendStatus(204);
-    } catch (err) {
-        if (codePg(err) === "23503") {
-            throw new ErreurHttp(409, "Le client " + id + " possède des devis");
-        }
-
-        throw err;
-    }
 });
 
 routeurClients.patch("/:id", async (req, res) => {
@@ -207,10 +175,9 @@ routeurClients.patch("/:id", async (req, res) => {
         throw new ErreurHttp(404, "Client " + id + " introuvable");
     }
 
-    const nomFinal = "nom" in modif ? modif.nom : clientActuel.nom;
-
+    // "in" et non "??" : un email ou un téléphone envoyé à null doit être effacé
+    const nomFinal = modif.nom ?? clientActuel.nom;
     const emailFinal = "email" in modif ? modif.email : clientActuel.email;
-
     const telephoneFinal = "telephone" in modif ? modif.telephone : clientActuel.telephone;
 
     const resultatUpdate = await pool.query<Client>(
@@ -223,9 +190,34 @@ routeurClients.patch("/:id", async (req, res) => {
 
     const clientModifie = resultatUpdate.rows[0];
 
+    // Le client peut avoir été supprimé entre la lecture et l'écriture
     if (clientModifie === undefined) {
-        throw new ErreurHttp(404, "Client " + id + " introuvable"); // le client peut avoir été supprimé entre la lecture et l’écriture
+        throw new ErreurHttp(404, "Client " + id + " introuvable");
     }
 
-    res.status(200).json(clientModifie);
+    res.json(clientModifie);
+});
+
+routeurClients.delete("/:id", async (req, res) => {
+    const id = lireId(req.params.id);
+
+    try {
+        const resultat = await pool.query(
+            `DELETE FROM clients
+            WHERE id = $1`,
+            [id]
+        );
+
+        if (resultat.rowCount === 0) {
+            throw new ErreurHttp(404, "Client " + id + " introuvable");
+        }
+
+        res.sendStatus(204);
+    } catch (err) {
+        if (codePg(err) === "23503") {
+            throw new ErreurHttp(409, "Le client " + id + " a des devis et ne peut pas être supprimé");
+        }
+
+        throw err;
+    }
 });

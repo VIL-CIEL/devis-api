@@ -1,7 +1,7 @@
 {
   "name": "devis-api",
-  "version": "1.0.0",
-  "description": "",
+  "version": "1.11.1",
+  "description": "API REST de gestion de devis en TypeScript : clients, devis, lignes et cycle de vie des statuts",
   "private": true,
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",

@@ -8,13 +8,14 @@
  * Un client_id inexistant à la création donne un 404.
  *
  * Exporte : routeurDevis, branché par index.ts sur /devis.
- * Importe : pool (db.ts), ErreurHttp, lireId, codePg (erreurs.ts),
- * Statut, estStatut, peutPasser, lignesModifiables (statuts.ts).
+ * Importe : pool (db.ts), ErreurHttp, lireObjet, lireId, codePg
+ * (erreurs.ts), STATUTS, Statut, estStatut, peutPasser, lignesModifiables
+ * (statuts.ts).
  */
 
 import express from "express";
 import { pool } from "../db.js";
-import { ErreurHttp, lireId, codePg } from "../erreurs.js";
+import { ErreurHttp, lireObjet, lireId, codePg } from "../erreurs.js";
 import { STATUTS, estStatut, lignesModifiables, peutPasser, type Statut } from "../statuts.js";
 
 type Devis = {
@@ -48,12 +49,12 @@ type NouvelleLigne = {
     prix_unitaire_ht: number;
 };
 
-function lireNouveauDevis(corps: unknown): NouveauDevis {
-    if (typeof corps !== "object" || corps === null) {
-        throw new ErreurHttp(400, "Corps JSON invalide lors de la création d'un nouveau devis");
-    }
+const MESSAGE_STATUT_INVALIDE = "Le statut doit être l'une des valeurs suivantes : " + STATUTS.join(", ");
 
-    const objet = corps as Record<string, unknown>;
+// Bloc devis
+
+function lireNouveauDevis(corps: unknown): NouveauDevis {
+    const objet = lireObjet(corps);
 
     const clientId = objet.client_id;
 
@@ -65,21 +66,21 @@ function lireNouveauDevis(corps: unknown): NouveauDevis {
 }
 
 function lireStatutDemande(corps: unknown): Statut {
-    if (typeof corps !== "object" || corps === null) {
-        throw new ErreurHttp(400, "Corps JSON invalide lors du changement de statut");
-    }
-
-    const objet = corps as Record<string, unknown>;
+    const objet = lireObjet(corps);
 
     const statut = objet.statut;
 
     if (!estStatut(statut)) {
-        throw new ErreurHttp(400, "Le statut doit être l'une des valeurs suivantes : " + STATUTS.join(", "));
+        throw new ErreurHttp(400, MESSAGE_STATUT_INVALIDE);
     }
 
     return statut;
 }
 
+/**
+ * Lit un devis par son identifiant. Lève une ErreurHttp 404 s'il n'existe
+ * pas : la route qui l'appelle s'arrête alors à cette ligne.
+ */
 async function chargerDevis(id: number): Promise<Devis> {
     const resultat = await pool.query<Devis>(
         `SELECT id, client_id, statut, created_at, updated_at
@@ -97,12 +98,10 @@ async function chargerDevis(id: number): Promise<Devis> {
     return devis;
 }
 
-function lireNouvelleLigne(corps: unknown): NouvelleLigne {
-    if (typeof corps !== "object" || corps === null) {
-        throw new ErreurHttp(400, "Corps JSON invalide lors de l'ajout d'une ligne");
-    }
+// Bloc lignes
 
-    const objet = corps as Record<string, unknown>;
+function lireNouvelleLigne(corps: unknown): NouvelleLigne {
+    const objet = lireObjet(corps);
 
     const designation = objet.designation;
     const quantite = objet.quantite;
@@ -116,6 +115,7 @@ function lireNouvelleLigne(corps: unknown): NouvelleLigne {
         throw new ErreurHttp(400, "La quantité doit être un entier strictement positif");
     }
 
+    // Borne de la colonne NUMERIC(10, 2) : au-delà, PostgreSQL refuserait avec une erreur 500
     if (typeof prixUnitaireHt !== "number" || prixUnitaireHt < 0 || prixUnitaireHt > 99999999.99) {
         throw new ErreurHttp(400, "Le prix unitaire HT doit être compris entre 0 et 99999999.99");
     }
@@ -123,10 +123,24 @@ function lireNouvelleLigne(corps: unknown): NouvelleLigne {
     return { designation: designation.trim(), quantite, prix_unitaire_ht: prixUnitaireHt };
 }
 
+/**
+ * Lève une ErreurHttp 409 si les lignes du devis ne sont plus modifiables,
+ * c'est-à-dire s'il n'est plus en brouillon.
+ */
+function exigerLignesModifiables(devis: Devis): void {
+    if (!lignesModifiables(devis.statut)) {
+        throw new ErreurHttp(409, "Les lignes d'un devis au statut " + devis.statut + " ne sont plus modifiables");
+    }
+}
+
 export const routeurDevis = express.Router();
 
 routeurDevis.get("/", async (req, res) => {
     const statut = req.query.statut;
+
+    if (statut !== undefined && !estStatut(statut)) {
+        throw new ErreurHttp(400, MESSAGE_STATUT_INVALIDE);
+    }
 
     let resultat;
 
@@ -137,10 +151,6 @@ routeurDevis.get("/", async (req, res) => {
             ORDER BY id`
         );
     } else {
-        if (!estStatut(statut)) {
-            throw new ErreurHttp(400, "Le statut doit être l'une des valeurs suivantes : " + STATUTS.join(", "));
-        }
-
         resultat = await pool.query<Devis>(
             `SELECT id, client_id, statut, created_at, updated_at
             FROM devis
@@ -158,7 +168,8 @@ routeurDevis.get("/:id", async (req, res) => {
 
     const devis = await chargerDevis(id);
 
-    const [lignesResultat, totalResultat] = await Promise.all([ // Requêtes indépendantes : lancées en parallèle
+    // Requêtes indépendantes : lancées en parallèle
+    const [lignesResultat, totalResultat] = await Promise.all([
         pool.query<LigneDevis>(
             `SELECT id, devis_id, designation, quantite, prix_unitaire_ht
             FROM lignes_devis
@@ -171,7 +182,7 @@ routeurDevis.get("/:id", async (req, res) => {
             FROM lignes_devis
             WHERE devis_id = $1`,
             [id]
-        ),
+        )
     ]);
 
     const ligneTotal = totalResultat.rows[0];
@@ -203,7 +214,7 @@ routeurDevis.post("/", async (req, res) => {
         const devis = resultat.rows[0];
 
         if (devis === undefined) {
-            throw new Error("Insertion échouée lors de la création d'un nouveau devis");
+            throw new Error("Insertion échouée lors de la création d'un devis");
         }
 
         res.status(201).json(devis);
@@ -214,33 +225,6 @@ routeurDevis.post("/", async (req, res) => {
 
         throw err;
     }
-});
-
-routeurDevis.post("/:id/lignes", async (req, res) => {
-    const id = lireId(req.params.id);
-
-    const nouvelleLigne = lireNouvelleLigne(req.body);
-
-    const devis = await chargerDevis(id);
-
-    if (!lignesModifiables(devis.statut)) {
-        throw new ErreurHttp(409, "Impossible de modifier les lignes d'un devis au statut " + devis.statut);
-    }
-
-    const resultat = await pool.query<LigneDevis>(
-        `INSERT INTO lignes_devis (devis_id, designation, quantite, prix_unitaire_ht)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, devis_id, designation, quantite, prix_unitaire_ht`,
-        [id, nouvelleLigne.designation, nouvelleLigne.quantite, nouvelleLigne.prix_unitaire_ht]
-    );
-
-    const ligne = resultat.rows[0];
-
-    if (ligne === undefined) {
-        throw new Error("Insertion échouée lors de la création d'une ligne de devis");
-    }
-
-    res.status(201).json(ligne);
 });
 
 routeurDevis.post("/:id/statut", async (req, res) => {
@@ -255,8 +239,8 @@ routeurDevis.post("/:id/statut", async (req, res) => {
     }
 
     if (statutDemande === "envoye") {
-        const resultatCompte = await pool.query<{ count: string }>(
-            `SELECT COUNT(*) AS count
+        const resultatCompte = await pool.query<{ nb_lignes: string }>(
+            `SELECT COUNT(*) AS nb_lignes
             FROM lignes_devis
             WHERE devis_id = $1`,
             [id]
@@ -268,16 +252,16 @@ routeurDevis.post("/:id/statut", async (req, res) => {
             throw new Error("Le nombre de lignes du devis est introuvable");
         }
 
-        if (Number(ligneCompte.count) === 0) {
+        if (Number(ligneCompte.nb_lignes) === 0) {
             throw new ErreurHttp(409, "Impossible d'envoyer un devis sans ligne");
         }
     }
 
+    // La condition sur l'ancien statut empêche deux changements simultanés de réussir tous les deux
     const resultat = await pool.query<Devis>(
         `UPDATE devis
         SET statut = $1, updated_at = now()
-        WHERE id = $2
-        AND statut = $3
+        WHERE id = $2 AND statut = $3
         RETURNING id, client_id, statut, created_at, updated_at`,
         [statutDemande, id, devis.statut]
     );
@@ -291,20 +275,43 @@ routeurDevis.post("/:id/statut", async (req, res) => {
     res.json(devisMisAJour);
 });
 
+routeurDevis.post("/:id/lignes", async (req, res) => {
+    const id = lireId(req.params.id);
+
+    const nouvelleLigne = lireNouvelleLigne(req.body);
+
+    const devis = await chargerDevis(id);
+
+    exigerLignesModifiables(devis);
+
+    const resultat = await pool.query<LigneDevis>(
+        `INSERT INTO lignes_devis (devis_id, designation, quantite, prix_unitaire_ht)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, devis_id, designation, quantite, prix_unitaire_ht`,
+        [id, nouvelleLigne.designation, nouvelleLigne.quantite, nouvelleLigne.prix_unitaire_ht]
+    );
+
+    const ligne = resultat.rows[0];
+
+    if (ligne === undefined) {
+        throw new Error("Insertion échouée lors de l'ajout d'une ligne de devis");
+    }
+
+    res.status(201).json(ligne);
+});
+
 routeurDevis.delete("/:id/lignes/:ligneId", async (req, res) => {
     const id = lireId(req.params.id);
     const ligneId = lireId(req.params.ligneId);
 
     const devis = await chargerDevis(id);
 
-    if (!lignesModifiables(devis.statut)) {
-        throw new ErreurHttp(409, "Impossible de modifier les lignes d'un devis au statut " + devis.statut);
-    }
+    exigerLignesModifiables(devis);
 
+    // La condition sur devis_id empêche de retirer la ligne d'un autre devis
     const resultat = await pool.query(
         `DELETE FROM lignes_devis
-        WHERE id = $1
-        AND devis_id = $2`,
+        WHERE id = $1 AND devis_id = $2`,
         [ligneId, id]
     );
 

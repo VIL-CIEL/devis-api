@@ -2,300 +2,341 @@
 #
 # S'utilise avec l'extension REST Client de VS Code : un lien « Send Request »
 # apparaît au-dessus de chaque requête, et la réponse s'affiche à droite.
-# Les requêtes sont séparées par ###. Chaque route y figure avec son cas
-# réussi et ses cas d'erreur (400, 404, 409), pour qu'on puisse vérifier les
-# codes de réponse sans écrire de client.
+# Le code attendu figure entre crochets dans le titre de chaque requête.
 #
-# Prérequis : la base créée avec sql/schema.sql et le serveur lancé avec
-# npm run dev. Les requêtes passent par index.ts, puis par
-# routes/clients.ts ou routes/devis.ts selon le préfixe.
+# Les requêtes se rejouent de haut en bas sur une base neuve : certaines
+# dépendent des précédentes (identifiants créés, statuts changés). Avant de
+# commencer, exécuter sql/schema.sql puis sql/donnees.sql, puis lancer le
+# serveur avec npm run dev.
 
 @base = http://localhost:3000
 
-### Santé de l'API
+
+### ------------------------------------------------------------
+# Santé et erreurs générales
+
+### [200] Santé de l'API
 GET {{base}}/health
 
-### Route inconnue (doit répondre 404)
+### [404] Route inconnue
 GET {{base}}/inconnue
 
-### JSON mal formé (doit répondre 400)
-POST {{base}}/health
+### [400] Corps JSON mal formé
+POST {{base}}/clients
 Content-Type: application/json
 
-{ "nom":}
+{ "nom": }
 
-### Liste des clients (200)
+
+### ------------------------------------------------------------
+# Clients : lecture
+
+### [200] Liste des clients
 GET {{base}}/clients
 
-### Un client (200)
+### [200] Un client
 GET {{base}}/clients/1
 
-### Client inexistant (404)
+### [404] Client inexistant
 GET {{base}}/clients/9999
 
-### Identifiant invalide (400)
+### [400] Identifiant invalide
 GET {{base}}/clients/abc
 
-### Créer un client complet (201)
+
+### ------------------------------------------------------------
+# Clients : création (les deux créations réussies donnent les clients 7 et 8)
+
+### [201] Créer un client complet (nom nettoyé, email en minuscules)
 POST {{base}}/clients
 Content-Type: application/json
 
 { "nom": "  Atelier Durand  ", "email": "Contact@Atelier-Durand.EXAMPLE.fr", "telephone": "0478000000" }
 
-### Créer un client avec seulement un nom (201)
+### [201] Créer un client avec seulement un nom (email et téléphone à null)
 POST {{base}}/clients
 Content-Type: application/json
 
 { "nom": "Garage Martin" }
 
-### Créer un client sans nom (400)
+### [400] Créer un client sans nom
 POST {{base}}/clients
 Content-Type: application/json
 
 { "email": "anonyme@example.fr" }
 
-### Nom fait d'espaces (400)
+### [400] Nom fait d'espaces
 POST {{base}}/clients
 Content-Type: application/json
 
 { "nom": "   " }
 
-### Email du mauvais type (400)
+### [400] Email du mauvais type
 POST {{base}}/clients
 Content-Type: application/json
 
 { "nom": "Test", "email": 42 }
 
-### Corps qui n'est pas un objet (400)
+### [400] Corps qui n'est pas un objet
 POST {{base}}/clients
 Content-Type: application/json
 
 "juste une chaîne"
 
-### Supprimer un client (204) : remplace 7 par l'id renvoyé par une création
-DELETE {{base}}/clients/7
 
-### Supprimer le même client une seconde fois (404)
-DELETE {{base}}/clients/7
+### ------------------------------------------------------------
+# Clients : modification partielle (sur le client 7)
 
-### Supprimer avec un identifiant invalide (400)
-DELETE {{base}}/clients/abc
-
-### Modifier seulement le téléphone (200)
-PATCH {{base}}/clients/1
+### [200] Modifier seulement le téléphone
+PATCH {{base}}/clients/7
 Content-Type: application/json
 
 { "telephone": "0478111111" }
 
-### Effacer l'email (200, email à null, le reste inchangé)
-PATCH {{base}}/clients/1
+### [200] Effacer l'email (email à null, le reste inchangé)
+PATCH {{base}}/clients/7
 Content-Type: application/json
 
 { "email": null }
 
-### Renommer avec des espaces autour (200, nom nettoyé)
-PATCH {{base}}/clients/1
+### [200] Renommer (nom nettoyé)
+PATCH {{base}}/clients/7
 Content-Type: application/json
 
-{ "nom": "  Boulangerie Martin  " }
+{ "nom": "  Atelier Durand et fils  " }
 
-### Corps vide (400)
-PATCH {{base}}/clients/1
+### [200] Vérifier que seuls les champs envoyés ont changé
+GET {{base}}/clients/7
+
+### [400] Corps vide
+PATCH {{base}}/clients/7
 Content-Type: application/json
 
 {}
 
-### Nom à null (400)
-PATCH {{base}}/clients/1
+### [400] Nom à null
+PATCH {{base}}/clients/7
 Content-Type: application/json
 
 { "nom": null }
 
-### Client inexistant (404)
+### [404] Client inexistant
 PATCH {{base}}/clients/9999
 Content-Type: application/json
 
 { "nom": "Personne" }
 
-### Identifiant invalide (400)
+### [400] Identifiant invalide
 PATCH {{base}}/clients/abc
 Content-Type: application/json
 
 { "nom": "Test" }
 
-### Supprimer un client qui a des devis (409)
+
+### ------------------------------------------------------------
+# Clients : suppression
+
+### [409] Supprimer un client qui a des devis
 DELETE {{base}}/clients/1
 
-### Lister les devis (200)
+### [204] Supprimer un client sans devis (le client 8, créé plus haut)
+DELETE {{base}}/clients/8
+
+### [404] Supprimer le même client une seconde fois
+DELETE {{base}}/clients/8
+
+### [400] Identifiant invalide
+DELETE {{base}}/clients/abc
+
+
+### ------------------------------------------------------------
+# Devis : lecture
+
+### [200] Liste des devis
 GET {{base}}/devis
 
-### Créer un devis (201, statut brouillon)
+### [200] Devis en brouillon
+GET {{base}}/devis?statut=brouillon
+
+### [200] Devis envoyés
+GET {{base}}/devis?statut=envoye
+
+### [400] Filtre sur un statut inconnu
+GET {{base}}/devis?statut=valide
+
+### [400] Filtre sur deux statuts à la fois
+GET {{base}}/devis?statut=brouillon&statut=envoye
+
+### [200] Devis avec lignes (total 289.86)
+GET {{base}}/devis/1
+
+### [200] Devis sans ligne (lignes vides, total 0.00)
+GET {{base}}/devis/2
+
+### [200] Devis envoyé (total 1015.00)
+GET {{base}}/devis/3
+
+### [404] Devis inexistant
+GET {{base}}/devis/9999
+
+### [400] Identifiant invalide
+GET {{base}}/devis/abc
+
+
+### ------------------------------------------------------------
+# Devis : création
+
+### [201] Créer un devis (statut brouillon)
 POST {{base}}/devis
 Content-Type: application/json
 
-{ "client_id": 2 }
+{ "client_id": 5 }
 
-### Créer un devis pour un client inexistant (404)
+### [404] Créer un devis pour un client inexistant
 POST {{base}}/devis
 Content-Type: application/json
 
 { "client_id": 9999 }
 
-### client_id en chaîne (400)
+### [400] client_id en chaîne
 POST {{base}}/devis
 Content-Type: application/json
 
-{ "client_id": "2" }
+{ "client_id": "5" }
 
-### client_id décimal (400)
+### [400] client_id décimal
 POST {{base}}/devis
 Content-Type: application/json
 
 { "client_id": 1.5 }
 
-### Corps sans client_id (400)
+### [400] Corps sans client_id
 POST {{base}}/devis
 Content-Type: application/json
 
 {}
 
-### Devis avec lignes (200, total 289.86)
-GET {{base}}/devis/1
 
-### Devis sans ligne (200, lignes vides, total 0.00)
-GET {{base}}/devis/2
+### ------------------------------------------------------------
+# Lignes de devis
 
-### Devis envoyé (200, total 1015.00)
-GET {{base}}/devis/3
-
-### Devis inexistant (404)
-GET {{base}}/devis/9999
-
-### Identifiant invalide (400)
-GET {{base}}/devis/abc
-
-### Ajouter une ligne à un brouillon (201)
+### [201] Ajouter une ligne au devis 1 (brouillon)
 POST {{base}}/devis/1/lignes
 Content-Type: application/json
 
 { "designation": "Routeur 4G de secours", "quantite": 1, "prix_unitaire_ht": 129.00 }
 
-### Ajouter une ligne à un devis envoyé (409)
+### [409] Ajouter une ligne au devis 3 (envoyé)
 POST {{base}}/devis/3/lignes
 Content-Type: application/json
 
 { "designation": "Ligne en trop", "quantite": 1, "prix_unitaire_ht": 10 }
 
-### Quantité nulle (400)
+### [400] Quantité nulle
 POST {{base}}/devis/1/lignes
 Content-Type: application/json
 
 { "designation": "Test", "quantite": 0, "prix_unitaire_ht": 10 }
 
-### Prix négatif (400)
+### [400] Prix négatif
 POST {{base}}/devis/1/lignes
 Content-Type: application/json
 
 { "designation": "Test", "quantite": 1, "prix_unitaire_ht": -5 }
 
-### Prix trop grand (400, pas 500)
+### [400] Prix au-delà de la borne de la colonne
 POST {{base}}/devis/1/lignes
 Content-Type: application/json
 
 { "designation": "Test", "quantite": 1, "prix_unitaire_ht": 1000000000 }
 
-### Désignation vide (400)
+### [400] Désignation vide
 POST {{base}}/devis/1/lignes
 Content-Type: application/json
 
 { "designation": "   ", "quantite": 1, "prix_unitaire_ht": 10 }
 
-### Devis inexistant (404)
+### [404] Ajouter une ligne à un devis inexistant
 POST {{base}}/devis/9999/lignes
 Content-Type: application/json
 
 { "designation": "Test", "quantite": 1, "prix_unitaire_ht": 10 }
 
-### Retirer une ligne d'un brouillon (204)
+### [204] Retirer la ligne 1 du devis 1
 DELETE {{base}}/devis/1/lignes/1
 
-### Retirer la même ligne une seconde fois (404)
+### [404] Retirer la même ligne une seconde fois
 DELETE {{base}}/devis/1/lignes/1
 
-### Retirer une ligne qui appartient à un autre devis (404)
+### [404] Retirer, via le devis 1, une ligne qui appartient au devis 3
 DELETE {{base}}/devis/1/lignes/4
 
-### Retirer une ligne d'un devis envoyé (409)
+### [409] Retirer une ligne du devis 3 (envoyé)
 DELETE {{base}}/devis/3/lignes/4
 
-### Envoyer un devis sans ligne (409)
+### [200] Devis 1 après ces changements (total 358.96)
+GET {{base}}/devis/1
+
+
+### ------------------------------------------------------------
+# Statuts
+
+### [409] Envoyer le devis 2, qui n'a aucune ligne
 POST {{base}}/devis/2/statut
 Content-Type: application/json
 
 { "statut": "envoye" }
 
-### Sauter de brouillon à signé (409)
+### [409] Passer le devis 1 de brouillon à signé
 POST {{base}}/devis/1/statut
 Content-Type: application/json
 
 { "statut": "signe" }
 
-### Envoyer le devis 1 (200, updated_at change)
+### [200] Envoyer le devis 1 (updated_at change)
 POST {{base}}/devis/1/statut
 Content-Type: application/json
 
 { "statut": "envoye" }
 
-### L'envoyer une seconde fois (409)
+### [409] Envoyer le devis 1 une seconde fois
 POST {{base}}/devis/1/statut
 Content-Type: application/json
 
 { "statut": "envoye" }
 
-### Ajouter une ligne au devis 1, désormais figé (409)
+### [409] Ajouter une ligne au devis 1, désormais figé
 POST {{base}}/devis/1/lignes
 Content-Type: application/json
 
 { "designation": "Trop tard", "quantite": 1, "prix_unitaire_ht": 10 }
 
-### Signer le devis 1 (200)
+### [200] Signer le devis 1
 POST {{base}}/devis/1/statut
 Content-Type: application/json
 
 { "statut": "signe" }
 
-### Changer le statut d'un devis refusé (409)
+### [409] Changer le statut du devis 4 (refusé, statut final)
 POST {{base}}/devis/4/statut
 Content-Type: application/json
 
 { "statut": "envoye" }
 
-### Statut inconnu (400)
+### [400] Statut inconnu
 POST {{base}}/devis/3/statut
 Content-Type: application/json
 
 { "statut": "valide" }
 
-### Corps sans statut (400)
+### [400] Corps sans statut
 POST {{base}}/devis/3/statut
 Content-Type: application/json
 
 {}
 
-### Devis inexistant (404)
+### [404] Changer le statut d'un devis inexistant
 POST {{base}}/devis/9999/statut
 Content-Type: application/json
 
 { "statut": "envoye" }
-
-### Devis en brouillon (200)
-GET {{base}}/devis?statut=brouillon
-
-### Devis envoyés (200)
-GET {{base}}/devis?statut=envoye
-
-### Statut inconnu (400)
-GET {{base}}/devis?statut=valide
-
-### Statut en double (400)
-GET {{base}}/devis?statut=brouillon&statut=envoye
