@@ -126,11 +126,29 @@ function lireNouvelleLigne(corps: unknown): NouvelleLigne {
 export const routeurDevis = express.Router();
 
 routeurDevis.get("/", async (req, res) => {
-    const resultat = await pool.query<Devis>(
-        `SELECT id, client_id, statut, created_at, updated_at
-        FROM devis
-        ORDER BY id`
-    );
+    const statut = req.query.statut;
+
+    let resultat;
+
+    if (statut === undefined) {
+        resultat = await pool.query<Devis>(
+            `SELECT id, client_id, statut, created_at, updated_at
+            FROM devis
+            ORDER BY id`
+        );
+    } else {
+        if (!estStatut(statut)) {
+            throw new ErreurHttp(400, "Le statut doit être l'une des valeurs suivantes : " + STATUTS.join(", "));
+        }
+
+        resultat = await pool.query<Devis>(
+            `SELECT id, client_id, statut, created_at, updated_at
+            FROM devis
+            WHERE statut = $1
+            ORDER BY id`,
+            [statut]
+        );
+    }
 
     res.json(resultat.rows);
 });

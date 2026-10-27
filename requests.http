@@ -287,3 +287,15 @@ POST {{base}}/devis/9999/statut
 Content-Type: application/json
 
 { "statut": "envoye" }
+
+### Devis en brouillon (200)
+GET {{base}}/devis?statut=brouillon
+
+### Devis envoyés (200)
+GET {{base}}/devis?statut=envoye
+
+### Statut inconnu (400)
+GET {{base}}/devis?statut=valide
+
+### Statut en double (400)
+GET {{base}}/devis?statut=brouillon&statut=envoye
