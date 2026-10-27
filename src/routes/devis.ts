@@ -15,7 +15,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { ErreurHttp, lireId, codePg } from "../erreurs.js";
-import { lignesModifiables, type Statut } from "../statuts.js";
+import { STATUTS, estStatut, lignesModifiables, peutPasser, type Statut } from "../statuts.js";
 
 type Devis = {
     id: number;
@@ -62,6 +62,22 @@ function lireNouveauDevis(corps: unknown): NouveauDevis {
     }
 
     return { client_id: clientId };
+}
+
+function lireStatutDemande(corps: unknown): Statut {
+    if (typeof corps !== "object" || corps === null) {
+        throw new ErreurHttp(400, "Corps JSON invalide lors du changement de statut");
+    }
+
+    const objet = corps as Record<string, unknown>;
+
+    const statut = objet.statut;
+
+    if (!estStatut(statut)) {
+        throw new ErreurHttp(400, "Le statut doit être l'une des valeurs suivantes : " + STATUTS.join(", "));
+    }
+
+    return statut;
 }
 
 async function chargerDevis(id: number): Promise<Devis> {
@@ -207,6 +223,54 @@ routeurDevis.post("/:id/lignes", async (req, res) => {
     }
 
     res.status(201).json(ligne);
+});
+
+routeurDevis.post("/:id/statut", async (req, res) => {
+    const id = lireId(req.params.id);
+
+    const statutDemande = lireStatutDemande(req.body);
+
+    const devis = await chargerDevis(id);
+
+    if (!peutPasser(devis.statut, statutDemande)) {
+        throw new ErreurHttp(409, "Transition de " + devis.statut + " vers " + statutDemande + " interdite");
+    }
+
+    if (statutDemande === "envoye") {
+        const resultatCompte = await pool.query<{ count: string }>(
+            `SELECT COUNT(*) AS count
+            FROM lignes_devis
+            WHERE devis_id = $1`,
+            [id]
+        );
+
+        const ligneCompte = resultatCompte.rows[0];
+
+        if (ligneCompte === undefined) {
+            throw new Error("Le nombre de lignes du devis est introuvable");
+        }
+
+        if (Number(ligneCompte.count) === 0) {
+            throw new ErreurHttp(409, "Impossible d'envoyer un devis sans ligne");
+        }
+    }
+
+    const resultat = await pool.query<Devis>(
+        `UPDATE devis
+        SET statut = $1, updated_at = now()
+        WHERE id = $2
+        AND statut = $3
+        RETURNING id, client_id, statut, created_at, updated_at`,
+        [statutDemande, id, devis.statut]
+    );
+
+    const devisMisAJour = resultat.rows[0];
+
+    if (devisMisAJour === undefined) {
+        throw new ErreurHttp(409, "Le statut du devis a été modifié entre-temps");
+    }
+
+    res.json(devisMisAJour);
 });
 
 routeurDevis.delete("/:id/lignes/:ligneId", async (req, res) => {

@@ -227,3 +227,63 @@ DELETE {{base}}/devis/1/lignes/4
 
 ### Retirer une ligne d'un devis envoyé (409)
 DELETE {{base}}/devis/3/lignes/4
+
+### Envoyer un devis sans ligne (409)
+POST {{base}}/devis/2/statut
+Content-Type: application/json
+
+{ "statut": "envoye" }
+
+### Sauter de brouillon à signé (409)
+POST {{base}}/devis/1/statut
+Content-Type: application/json
+
+{ "statut": "signe" }
+
+### Envoyer le devis 1 (200, updated_at change)
+POST {{base}}/devis/1/statut
+Content-Type: application/json
+
+{ "statut": "envoye" }
+
+### L'envoyer une seconde fois (409)
+POST {{base}}/devis/1/statut
+Content-Type: application/json
+
+{ "statut": "envoye" }
+
+### Ajouter une ligne au devis 1, désormais figé (409)
+POST {{base}}/devis/1/lignes
+Content-Type: application/json
+
+{ "designation": "Trop tard", "quantite": 1, "prix_unitaire_ht": 10 }
+
+### Signer le devis 1 (200)
+POST {{base}}/devis/1/statut
+Content-Type: application/json
+
+{ "statut": "signe" }
+
+### Changer le statut d'un devis refusé (409)
+POST {{base}}/devis/4/statut
+Content-Type: application/json
+
+{ "statut": "envoye" }
+
+### Statut inconnu (400)
+POST {{base}}/devis/3/statut
+Content-Type: application/json
+
+{ "statut": "valide" }
+
+### Corps sans statut (400)
+POST {{base}}/devis/3/statut
+Content-Type: application/json
+
+{}
+
+### Devis inexistant (404)
+POST {{base}}/devis/9999/statut
+Content-Type: application/json
+
+{ "statut": "envoye" }

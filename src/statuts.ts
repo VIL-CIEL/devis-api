@@ -20,6 +20,24 @@ export const STATUTS = [
 
 export type Statut = (typeof STATUTS)[number];
 
+const TRANSITIONS: Record<Statut, readonly Statut[]> = {
+    brouillon: ["envoye"],
+    envoye: ["signe", "refuse"],
+    signe: [],
+    refuse: []
+};
+
 export function lignesModifiables(statut: Statut): boolean {
     return statut === "brouillon";
+}
+
+export function estStatut(valeur: unknown): valeur is Statut {
+    return (
+        typeof valeur === "string" &&
+        (STATUTS as readonly string[]).includes(valeur)
+    );
+}
+
+export function peutPasser(de: Statut, vers: Statut): boolean {
+    return TRANSITIONS[de].includes(vers);
 }
