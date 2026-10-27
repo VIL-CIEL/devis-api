@@ -158,3 +158,18 @@ POST {{base}}/devis
 Content-Type: application/json
 
 {}
+
+### Devis avec lignes (200, total 289.86)
+GET {{base}}/devis/1
+
+### Devis sans ligne (200, lignes vides, total 0.00)
+GET {{base}}/devis/2
+
+### Devis envoyé (200, total 1015.00)
+GET {{base}}/devis/3
+
+### Devis inexistant (404)
+GET {{base}}/devis/9999
+
+### Identifiant invalide (400)
+GET {{base}}/devis/abc
